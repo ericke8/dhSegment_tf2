@@ -19,8 +19,8 @@ def label_image_to_class(label_image: tf.Tensor, classes_file: str) -> tf.Tensor
         else:
             raise NotImplementedError('Length is : {}'.format(len(label_image.get_shape())))
 
-        pixel_class_diff = tf.reduce_sum(tf.square(diff), axis=-1)  # [H,W,C] or [B,H,W,C]
-        class_label = tf.argmin(pixel_class_diff, axis=-1)  # [H,W] or [B,H,W]
+        pixel_class_diff = tf.reduce_sum(input_tensor=tf.square(diff), axis=-1)  # [H,W,C] or [B,H,W,C]
+        class_label = tf.argmin(input=pixel_class_diff, axis=-1)  # [H,W] or [B,H,W]
         return class_label
 
 
@@ -48,8 +48,8 @@ def multilabel_image_to_class(label_image: tf.Tensor, classes_file: str) -> tf.T
         else:
             raise NotImplementedError('Length is : {}'.format(len(label_image.get_shape())))
 
-        pixel_class_diff = tf.reduce_sum(tf.square(diff), axis=-1)  # [H,W,C] or [B,H,W,C]
-        class_label = tf.argmin(pixel_class_diff, axis=-1)  # [H,W] or [B,H,W]
+        pixel_class_diff = tf.reduce_sum(input_tensor=tf.square(diff), axis=-1)  # [H,W,C] or [B,H,W,C]
+        class_label = tf.argmin(input=pixel_class_diff, axis=-1)  # [H,W] or [B,H,W]
 
         return tf.gather(colors_labels, class_label) > 0
 

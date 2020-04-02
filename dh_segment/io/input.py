@@ -50,7 +50,7 @@ def input_fn(input_data: Union[str, List[str]], params: dict, input_label_dir: s
     # Load and resize images
     def _load_image_fn(image_filename, label_filename):
         if training_params.data_augmentation and training_params.input_resized_size > 0:
-            random_scaling = tf.random_uniform([],
+            random_scaling = tf.random.uniform([],
                                                np.maximum(1 - training_params.data_augmentation_max_scaling, 0),
                                                1 + training_params.data_augmentation_max_scaling)
             new_size = training_params.input_resized_size * random_scaling
@@ -72,7 +72,7 @@ def input_fn(input_data: Union[str, List[str]], params: dict, input_label_dir: s
             # Rotation of the original image
             if training_params.data_augmentation_max_rotation > 0:
                 with tf.name_scope('random_rotation'):
-                    rotation_angle = tf.random_uniform([],
+                    rotation_angle = tf.random.uniform([],
                                                        -training_params.data_augmentation_max_rotation,
                                                        training_params.data_augmentation_max_rotation)
                     label_image = rotate_crop(label_image, rotation_angle,
@@ -84,8 +84,8 @@ def input_fn(input_data: Union[str, List[str]], params: dict, input_label_dir: s
 
         if make_patches:
             # Offsets for patch extraction
-            offsets = (tf.random_uniform(shape=[], minval=0, maxval=1, dtype=tf.float32),
-                       tf.random_uniform(shape=[], minval=0, maxval=1, dtype=tf.float32))
+            offsets = (tf.random.uniform(shape=[], minval=0, maxval=1, dtype=tf.float32),
+                       tf.random.uniform(shape=[], minval=0, maxval=1, dtype=tf.float32))
             # offsets = (0, 0)
             batch_image, batch_label = _make_patches_fn(input_image, label_image, offsets)
         else:
@@ -187,7 +187,7 @@ def input_fn(input_data: Union[str, List[str]], params: dict, input_label_dir: s
             dataset = dataset.map(_assign_color_to_class_id, num_threads)
 
         # Save original size of images
-        dataset = dataset.map(lambda d: {'shapes': tf.shape(d['images'])[:2], **d})
+        dataset = dataset.map(lambda d: {'shapes': tf.shape(input=d['images'])[:2], **d})
         if make_patches:
             dataset = dataset.shuffle(128)
 
@@ -209,13 +209,13 @@ def input_fn(input_data: Union[str, List[str]], params: dict, input_label_dir: s
             padded_shapes['weight_maps'] = base_shape_images
 
         dataset = dataset.padded_batch(batch_size=batch_size, padded_shapes=padded_shapes).prefetch(8)
-        prepared_batch = dataset.make_one_shot_iterator().get_next()
+        prepared_batch = tf.compat.v1.data.make_one_shot_iterator(dataset).get_next()
 
         # Summaries for checking that the loading and data augmentation goes fine
         if image_summaries:
-            shape_summary_img = tf.cast(tf.shape(prepared_batch['images'])[1:3] / 3, tf.int32)
-            tf.summary.image('input/image',
-                             tf.image.resize_images(prepared_batch['images'], shape_summary_img),
+            shape_summary_img = tf.cast(tf.shape(input=prepared_batch['images'])[1:3] / 3, tf.int32)
+            tf.compat.v1.summary.image('input/image',
+                             tf.compat.v1.image.resize_images(prepared_batch['images'], shape_summary_img),
                              max_outputs=1)
             if 'labels' in prepared_batch:
                 label_export = prepared_batch['labels']
@@ -224,11 +224,11 @@ def input_fn(input_data: Union[str, List[str]], params: dict, input_label_dir: s
                 if prediction_type == utils.PredictionType.MULTILABEL:
                     label_export = tf.cast(label_export, tf.int32)
                     label_export = utils.multiclass_to_label_image(label_export, classes_file)
-                tf.summary.image('input/label',
-                                 tf.image.resize_images(label_export, shape_summary_img), max_outputs=1)
+                tf.compat.v1.summary.image('input/label',
+                                 tf.compat.v1.image.resize_images(label_export, shape_summary_img), max_outputs=1)
             if 'weight_maps' in prepared_batch:
-                tf.summary.image('input/weight_map',
-                                 tf.image.resize_images(prepared_batch['weight_maps'][:, :, :, None],
+                tf.compat.v1.summary.image('input/weight_map',
+                                 tf.compat.v1.image.resize_images(prepared_batch['weight_maps'][:, :, :, None],
                                                         shape_summary_img),
                                  max_outputs=1)
 
@@ -240,12 +240,12 @@ def input_fn(input_data: Union[str, List[str]], params: dict, input_label_dir: s
 def serving_input_filename(resized_size):
     def serving_input_fn():
         # define placeholder for filename
-        filename = tf.placeholder(dtype=tf.string)
+        filename = tf.compat.v1.placeholder(dtype=tf.string)
 
         # TODO : make it batch-compatible (with Dataset or string input producer)
-        decoded_image = tf.to_float(tf.image.decode_jpeg(tf.read_file(filename), channels=3,
+        decoded_image = tf.compat.v1.to_float(tf.image.decode_jpeg(tf.io.read_file(filename), channels=3,
                                                          try_recover_truncated=True))
-        original_shape = tf.shape(decoded_image)[:2]
+        original_shape = tf.shape(input=decoded_image)[:2]
 
         if resized_size is not None and resized_size > 0:
             image = resize_image(decoded_image, resized_size)
@@ -270,5 +270,5 @@ def serving_input_filename(resized_size):
 
 
 def serving_input_image():
-    dic_input_serving = {'images': tf.placeholder(tf.float32, [None, None, None, 3])}
+    dic_input_serving = {'images': tf.compat.v1.placeholder(tf.float32, [None, None, None, 3])}
     return tf.estimator.export.build_raw_serving_input_receiver_fn(dic_input_serving)

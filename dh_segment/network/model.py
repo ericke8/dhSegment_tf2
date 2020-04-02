@@ -20,7 +20,7 @@ def inference_vgg16(images: tf.Tensor, params: ModelParams, num_classes: int, us
             else:
                 renorm_clipping = None
                 renorm_momentum = 0.99
-            batch_norm_fn = lambda x: tf.layers.batch_normalization(x, axis=-1, training=is_training, name='batch_norm',
+            batch_norm_fn = lambda x: tf.compat.v1.layers.batch_normalization(x, axis=-1, training=is_training, name='batch_norm',
                                                                     renorm=params.batch_renorm,
                                                                     renorm_clipping=renorm_clipping,
                                                                     renorm_momentum=renorm_momentum)
@@ -32,8 +32,8 @@ def inference_vgg16(images: tf.Tensor, params: ModelParams, num_classes: int, us
                 if previous_layer.get_shape()[1].value and previous_layer.get_shape()[2].value:
                     target_shape = previous_layer.get_shape()[1:3]
                 else:
-                    target_shape = tf.shape(previous_layer)[1:3]
-                upsampled_layer = tf.image.resize_images(pooled_layer, target_shape,
+                    target_shape = tf.shape(input=previous_layer)[1:3]
+                upsampled_layer = tf.compat.v1.image.resize_images(pooled_layer, target_shape,
                                                          method=tf.image.ResizeMethod.BILINEAR)
                 input_tensor = tf.concat([upsampled_layer, previous_layer], 3)
 
@@ -99,7 +99,7 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
         else:
             renorm_clipping = None
             renorm_momentum = 0.99
-        batch_norm_fn = lambda x: tf.layers.batch_normalization(x, axis=-1, training=is_training, name='batch_norm',
+        batch_norm_fn = lambda x: tf.compat.v1.layers.batch_normalization(x, axis=-1, training=is_training, name='batch_norm',
                                                                 renorm=params.batch_renorm,
                                                                 renorm_clipping=renorm_clipping,
                                                                 renorm_momentum=renorm_momentum)
@@ -116,13 +116,13 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
         :param number:
         :return:
         """
-        with tf.variable_scope('deconv_{}'.format(number)):
+        with tf.compat.v1.variable_scope('deconv_{}'.format(number)):
             if previous_intermediate_layer.get_shape()[1].value and \
                     previous_intermediate_layer.get_shape()[2].value:
                 target_shape = previous_intermediate_layer.get_shape()[1:3]
             else:
-                target_shape = tf.shape(previous_intermediate_layer)[1:3]
-            upsampled_layer = tf.image.resize_images(input_tensor, target_shape,
+                target_shape = tf.shape(input=previous_intermediate_layer)[1:3]
+            upsampled_layer = tf.compat.v1.image.resize_images(input_tensor, target_shape,
                                                      method=tf.image.ResizeMethod.BILINEAR)
             net = tf.concat([upsampled_layer, previous_intermediate_layer], 3)
 
@@ -152,7 +152,7 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
                                                       corrected_version=params.correct_resnet_version)
 
     # Upsampling
-    with tf.variable_scope('upsampling'):
+    with tf.compat.v1.variable_scope('upsampling'):
         with arg_scope([layers.conv2d],
                        normalizer_fn=batch_norm_fn,
                        weights_regularizer=layers.l2_regularizer(weight_decay)):
@@ -193,8 +193,8 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
             if images.get_shape()[1].value and images.get_shape()[2].value:
                 target_shape = images.get_shape()[1:3]
             else:
-                target_shape = tf.shape(images)[1:3]
-            out_tensor = tf.image.resize_images(out_tensor, target_shape,
+                target_shape = tf.shape(input=images)[1:3]
+            out_tensor = tf.compat.v1.image.resize_images(out_tensor, target_shape,
                                                 method=tf.image.ResizeMethod.BILINEAR)
 
         logits = layers.conv2d(inputs=out_tensor,
@@ -237,7 +237,7 @@ def _get_image_shape_tensor(tensor: tf.Tensor):
                     tensor.get_shape()[2].value:
         target_shape = tensor.get_shape()[1:3]
     else:
-        target_shape = tf.shape(tensor)[1:3]
+        target_shape = tf.shape(input=tensor)[1:3]
     return target_shape
 
 
@@ -246,9 +246,9 @@ def inference_u_net(images: tf.Tensor, params: ModelParams, num_classes: int, us
     enc_layers = OrderedDict()
     dec_layers = OrderedDict()
 
-    with tf.variable_scope('U-Net'):
+    with tf.compat.v1.variable_scope('U-Net'):
 
-        with tf.variable_scope('Encoder'):
+        with tf.compat.v1.variable_scope('Encoder'):
 
             conv_layer = layers.conv2d(images, num_outputs=64, kernel_size=(3, 3), padding='SAME',
                                        activation_fn=tf.identity)
@@ -276,13 +276,13 @@ def inference_u_net(images: tf.Tensor, params: ModelParams, num_classes: int, us
                                                 output_channels=1024,
                                                 bn=True, is_training=is_training, relu=True)
 
-        with tf.variable_scope('Decoder'):
+        with tf.compat.v1.variable_scope('Decoder'):
             dec_layers['conv_layer_dec_512'] = conv_bn_layer(conv_layer_enc_1024, kernel_size=(3, 3),
                                                              output_channels=512,
                                                              bn=True, is_training=is_training, relu=True)
 
             reduced_patchsize = _get_image_shape_tensor(enc_layers['conv_layer_enc_512'])
-            dec_layers['conv_layer_dec_512'] = tf.image.resize_images(dec_layers['conv_layer_dec_512'], size=reduced_patchsize,
+            dec_layers['conv_layer_dec_512'] = tf.compat.v1.image.resize_images(dec_layers['conv_layer_dec_512'], size=reduced_patchsize,
                                                                       method=tf.image.ResizeMethod.BILINEAR)
 
             for n_feat in [512, 256, 128, 64]:
@@ -301,7 +301,7 @@ def inference_u_net(images: tf.Tensor, params: ModelParams, num_classes: int, us
                         bn=True, is_training=is_training, relu=True)
 
                     reduced_patchsize = _get_image_shape_tensor(enc_layers['conv_layer_enc_' + str(int(n_feat / 2))])
-                    dec_layers['conv_layer_dec_' + str(int(n_feat / 2))] = tf.image.resize_images(
+                    dec_layers['conv_layer_dec_' + str(int(n_feat / 2))] = tf.compat.v1.image.resize_images(
                         dec_layers['conv_layer_dec_' + str(int(n_feat / 2))],
                         size=reduced_patchsize,
                         method=tf.image.ResizeMethod.BILINEAR)

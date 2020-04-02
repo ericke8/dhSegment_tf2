@@ -13,7 +13,7 @@ from dh_segment.post_processing import binarization
 from dh_segment.post_processing.boxes_detection import find_boxes
 
 
-def prediction_fn(model_dir: str, input_dir: str, output_dir: str=None, tf_config: tf.ConfigProto=None) -> None:
+def prediction_fn(model_dir: str, input_dir: str, output_dir: str=None, tf_config: tf.compat.v1.ConfigProto=None) -> None:
     """
     Given a model directory this function will load the model and apply it to the files (.jpg, .png) found in input_dir.
     The predictions will be saved in output_dir as .npy files (values ranging [0,255])
@@ -30,7 +30,7 @@ def prediction_fn(model_dir: str, input_dir: str, output_dir: str=None, tf_confi
     os.makedirs(output_dir, exist_ok=True)
     filenames_to_predict = glob(os.path.join(input_dir, '*.jpg')) + glob(os.path.join(input_dir, '*.png'))
     # Load model
-    with tf.Session(config=tf_config):
+    with tf.compat.v1.Session(config=tf_config):
         m = LoadedModel(model_dir, predict_mode='filename_original_shape')
         for filename in tqdm(filenames_to_predict, desc='Prediction'):
             pred = m.predict(filename)['probs'][0]

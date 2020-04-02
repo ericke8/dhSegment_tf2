@@ -18,7 +18,7 @@ from dh_segment.inference import LoadedModel
 def prediction_fn(model_dir: str,
                   input_dir: str,
                   output_dir: str=None,
-                  config: tf.ConfigProto=None) -> None:
+                  config: tf.compat.v1.ConfigProto=None) -> None:
     """
     Given a model directory this function will load the model and apply it to the files (.jpg, .png) found in input_dir.
     The predictions will be saved in output_dir as .npy files (values ranging [0,255])
@@ -36,7 +36,7 @@ def prediction_fn(model_dir: str,
     os.makedirs(output_dir, exist_ok=True)
     filenames_to_predict = glob(os.path.join(input_dir, '*.jpg')) + glob(os.path.join(input_dir, '*.png'))
 
-    with tf.Session(config=config):
+    with tf.compat.v1.Session(config=config):
         m = LoadedModel(model_dir, predict_mode='filename_original_shape')
         for filename in tqdm(filenames_to_predict, desc='Prediction'):
             pred = m.predict(filename)['probs'][0]

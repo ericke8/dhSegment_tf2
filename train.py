@@ -3,7 +3,7 @@ import tensorflow as tf
 # Tensorflow logging level
 from logging import WARNING  # import  DEBUG, INFO, ERROR for more/less verbosity
 
-tf.logging.set_verbosity(WARNING)
+tf.compat.v1.logging.set_verbosity(WARNING)
 from dh_segment import estimator_fn, utils
 from dh_segment.io import input
 import json
@@ -64,7 +64,7 @@ def run(train_data, eval_data, model_output_dir, gpu, training_params, _config):
 
     training_params = utils.TrainingParams.from_dict(training_params)
 
-    session_config = tf.ConfigProto()
+    session_config = tf.compat.v1.ConfigProto()
     session_config.gpu_options.visible_device_list = str(gpu)
     session_config.gpu_options.per_process_gpu_memory_fraction = 0.9
     estimator_config = tf.estimator.RunConfig().replace(session_config=session_config,

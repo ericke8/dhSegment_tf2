@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.contrib.image import rotate as tf_rotate
+from tensorflow_addons.image import rotate as tf_rotate
 from scipy import ndimage
 import numpy as np
 from typing import Tuple
@@ -20,12 +20,12 @@ def data_augmentation_fn(input_image: tf.Tensor, label_image: tf.Tensor, flip_lr
     with tf.name_scope('DataAugmentation'):
         if flip_lr:
             with tf.name_scope('random_flip_lr'):
-                sample = tf.random_uniform([], 0, 1)
+                sample = tf.random.uniform([], 0, 1)
                 label_image = tf.cond(sample > 0.5, lambda: tf.image.flip_left_right(label_image), lambda: label_image)
                 input_image = tf.cond(sample > 0.5, lambda: tf.image.flip_left_right(input_image), lambda: input_image)
         if flip_ud:
             with tf.name_scope('random_flip_ud'):
-                sample = tf.random_uniform([], 0, 1)
+                sample = tf.random.uniform([], 0, 1)
                 label_image = tf.cond(sample > 0.5, lambda: tf.image.flip_up_down(label_image), lambda: label_image)
                 input_image = tf.cond(sample > 0.5, lambda: tf.image.flip_up_down(input_image), lambda: input_image)
 
@@ -53,7 +53,7 @@ def rotate_crop(image: tf.Tensor, rotation: float, crop: bool=True, minimum_shap
         rotated_image = tf_rotate(image, rotation, interpolation)
         if crop:
             rotation = tf.abs(rotation)
-            original_shape = tf.shape(rotated_image)[:2]
+            original_shape = tf.shape(input=rotated_image)[:2]
             h, w = original_shape[0], original_shape[1]
             # see https://stackoverflow.com/questions/16702966/rotate-image-and-crop-out-black-borders for formulae
             old_l, old_s = tf.cond(h > w, lambda: [h, w], lambda: [w, h])
@@ -62,12 +62,12 @@ def rotate_crop(image: tf.Tensor, rotation: float, crop: bool=True, minimum_shap
             new_s = (old_s - tf.sin(rotation) * new_l) / tf.cos(rotation)
             new_h, new_w = tf.cond(h > w, lambda: [new_l, new_s], lambda: [new_s, new_l])
             new_h, new_w = tf.cast(new_h, tf.int32), tf.cast(new_w, tf.int32)
-            bb_begin = tf.cast(tf.ceil((h - new_h) / 2), tf.int32), tf.cast(tf.ceil((w - new_w) / 2), tf.int32)
+            bb_begin = tf.cast(tf.math.ceil((h - new_h) / 2), tf.int32), tf.cast(tf.math.ceil((w - new_w) / 2), tf.int32)
             rotated_image_crop = rotated_image[bb_begin[0]:h - bb_begin[0], bb_begin[1]:w - bb_begin[1], :]
 
             # If crop removes the entire image, keep the original image
-            rotated_image = tf.cond(tf.less_equal(tf.reduce_min(tf.shape(rotated_image_crop)[:2]),
-                                                  tf.reduce_max(minimum_shape)),
+            rotated_image = tf.cond(tf.less_equal(tf.reduce_min(input_tensor=tf.shape(input=rotated_image_crop)[:2]),
+                                                  tf.reduce_max(input_tensor=minimum_shape)),
                                     true_fn=lambda: image,
                                     false_fn=lambda: rotated_image_crop)
         return rotated_image
@@ -84,19 +84,19 @@ def resize_image(image: tf.Tensor, size: int, interpolation: str='BILINEAR') -> 
     assert interpolation in ['BILINEAR', 'NEAREST']
 
     with tf.name_scope('ImageRescaling'):
-        input_shape = tf.cast(tf.shape(image)[:2], tf.float32)
+        input_shape = tf.cast(tf.shape(input=image)[:2], tf.float32)
         size = tf.cast(size, tf.float32)
         # Compute new shape
         # We want X/Y = x/y and we have size = x*y so :
-        ratio = tf.div(input_shape[1], input_shape[0])
-        new_height = tf.sqrt(tf.div(size, ratio))
-        new_width = tf.div(size, new_height)
+        ratio = tf.compat.v1.div(input_shape[1], input_shape[0])
+        new_height = tf.sqrt(tf.compat.v1.div(size, ratio))
+        new_width = tf.compat.v1.div(size, new_height)
         new_shape = tf.cast([new_height, new_width], tf.int32)
         resize_method = {
             'NEAREST': tf.image.ResizeMethod.NEAREST_NEIGHBOR,
             'BILINEAR': tf.image.ResizeMethod.BILINEAR
         }
-        return tf.image.resize_images(image, new_shape, method=resize_method[interpolation])
+        return tf.compat.v1.image.resize_images(image, new_shape, method=resize_method[interpolation])
 
 
 def load_and_resize_image(filename: str, channels: int, size: int=None, interpolation: str='BILINEAR') -> tf.Tensor:
@@ -110,7 +110,7 @@ def load_and_resize_image(filename: str, channels: int, size: int=None, interpol
     :return: decoded and resized float32 tensor [h, w, channels],
     """
     with tf.name_scope('load_img'):
-        decoded_image = tf.to_float(tf.image.decode_jpeg(tf.read_file(filename), channels=channels,
+        decoded_image = tf.compat.v1.to_float(tf.image.decode_jpeg(tf.io.read_file(filename), channels=channels,
                                                          try_recover_truncated=True))
         # TODO : if one side is smaller than size of patches (and make patches == true),
         # TODO : force the image to have at least patch size
@@ -140,10 +140,10 @@ def extract_patches_fn(image: tf.Tensor, patch_shape: Tuple[int, int], offsets: 
         offset_img = image[offset_h:, offset_w:, :]
         offset_img = offset_img[None, :, :, :]
 
-        patches = tf.extract_image_patches(offset_img, ksizes=[1, h, w, 1], strides=[1, h // 2, w // 2, 1],
+        patches = tf.image.extract_image_patches(offset_img, sizes=[1, h, w, 1], strides=[1, h // 2, w // 2, 1],
                                            rates=[1, 1, 1, 1], padding='VALID')
-        patches_shape = tf.shape(patches)
-        return tf.reshape(patches, [tf.reduce_prod(patches_shape[:3]), h, w, int(c)])
+        patches_shape = tf.shape(input=patches)
+        return tf.reshape(patches, [tf.reduce_prod(input_tensor=patches_shape[:3]), h, w, int(c)])
 
 
 def local_entropy(tf_binary_img: tf.Tensor, sigma: float=3) -> tf.Tensor:
@@ -168,17 +168,17 @@ def local_entropy(tf_binary_img: tf.Tensor, sigma: float=3) -> tf.Tensor:
         output = lut[labelled]
         return output
 
-    label_components = tf.py_func(_fn, [tf_binary_img], tf.int32)
+    label_components = tf.compat.v1.py_func(_fn, [tf_binary_img], tf.int32)
     label_components.set_shape([None, None])
-    one_hot_components = tf.one_hot(label_components, tf.reduce_max(label_components))
-    one_hot_components = tf.transpose(one_hot_components, [2, 0, 1])
+    one_hot_components = tf.one_hot(label_components, tf.reduce_max(input_tensor=label_components))
+    one_hot_components = tf.transpose(a=one_hot_components, perm=[2, 0, 1])
 
     local_components_avg = tf.nn.conv2d(one_hot_components[:, :, :, None],
                                         get_gaussian_filter_1d(sigma)[None, :, None, None], (1, 1, 1, 1),
                                         padding='SAME')
     local_components_avg = tf.nn.conv2d(local_components_avg, get_gaussian_filter_1d(sigma)[:, None, None, None],
                                         (1, 1, 1, 1), padding='SAME')
-    local_components_avg = tf.transpose(local_components_avg[:, :, :, 0], [1, 2, 0])
+    local_components_avg = tf.transpose(a=local_components_avg[:, :, :, 0], perm=[1, 2, 0])
     local_components_avg = tf.pow(local_components_avg, 1 / 1.4)
-    local_components_avg = local_components_avg / (tf.reduce_sum(local_components_avg, axis=2, keep_dims=True) + 1e-6)
-    return -tf.reduce_sum(local_components_avg * tf.log(local_components_avg + 1e-6), axis=2)
+    local_components_avg = local_components_avg / (tf.reduce_sum(input_tensor=local_components_avg, axis=2, keepdims=True) + 1e-6)
+    return -tf.reduce_sum(input_tensor=local_components_avg * tf.math.log(local_components_avg + 1e-6), axis=2)

@@ -24,14 +24,14 @@ def page_extraction(model_dir: str,
                     filenames_to_process: List[str],
                     output_dir: str,
                     draw_extractions: bool=False,
-                    config: tf.ConfigProto=None):
+                    config: tf.compat.v1.ConfigProto=None):
 
     os.makedirs(output_dir, exist_ok=True)
     if draw_extractions:
         drawing_dir = os.path.join(output_dir, 'drawings')
         os.makedirs(drawing_dir)
 
-    with tf.Session(config=config):
+    with tf.compat.v1.Session(config=config):
         # Load the model
         m = LoadedModel(model_dir, predict_mode='filename')
         for filename in tqdm(filenames_to_process, desc='Prediction'):
