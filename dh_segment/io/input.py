@@ -202,10 +202,12 @@ def input_fn(input_data: Union[str, List[str]], params: dict, input_label_dir: s
             'images': base_shape_images + [3],
             'shapes': [2]
         }
-        if 'labels' in dataset.output_shapes.keys():
-            output_shapes_label = dataset.output_shapes['labels']
+
+        out_shapes = tf.compat.v1.data.get_output_shapes(dataset)
+        if 'labels' in out_shapes.keys():
+            output_shapes_label = out_shapes['labels']
             padded_shapes['labels'] = base_shape_images + list(output_shapes_label[2:])
-        if 'weight_maps' in dataset.output_shapes.keys():
+        if 'weight_maps' in out_shapes.keys():
             padded_shapes['weight_maps'] = base_shape_images
 
         dataset = dataset.padded_batch(batch_size=batch_size, padded_shapes=padded_shapes).prefetch(8)

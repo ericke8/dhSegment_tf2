@@ -2,9 +2,10 @@
 
 import tensorflow as tf
 from ..utils import ModelParams
-from tensorflow.contrib import layers  # TODO migration to tf.layers ?
-from tensorflow.contrib.slim.nets import resnet_v1
-from tensorflow.contrib.slim import arg_scope
+from tensorflow_addons import layers  # TODO migration to tf.layers ?
+import tf_slim as slim
+from tf_slim.nets import resnet_v1
+from tf_slim import arg_scope
 from .pretrained_models import vgg_16_fn, resnet_v1_50_fn
 from collections import OrderedDict
 
@@ -29,7 +30,7 @@ def inference_vgg16(images: tf.Tensor, params: ModelParams, num_classes: int, us
 
         def upsample_conv(pooled_layer, previous_layer, layer_params, number):
             with tf.name_scope('deconv{}'.format(number)):
-                if previous_layer.get_shape()[1].value and previous_layer.get_shape()[2].value:
+                if previous_layer.get_shape()[1] and previous_layer.get_shape()[2]:
                     target_shape = previous_layer.get_shape()[1:3]
                 else:
                     target_shape = tf.shape(input=previous_layer)[1:3]
@@ -38,7 +39,7 @@ def inference_vgg16(images: tf.Tensor, params: ModelParams, num_classes: int, us
                 input_tensor = tf.concat([upsampled_layer, previous_layer], 3)
 
                 for i, (nb_filters, filter_size) in enumerate(layer_params):
-                    input_tensor = layers.conv2d(
+                    input_tensor = slim.conv2d(
                         inputs=input_tensor,
                         num_outputs=nb_filters,
                         kernel_size=[filter_size, filter_size],
@@ -56,7 +57,7 @@ def inference_vgg16(images: tf.Tensor, params: ModelParams, num_classes: int, us
             with tf.name_scope('intermediate_convs'):
                 for layer_params in params.intermediate_conv:
                     for k, (nb_filters, filter_size) in enumerate(layer_params):
-                        out_tensor = layers.conv2d(inputs=out_tensor,
+                        out_tensor = slim.conv2d(inputs=out_tensor,
                                                    num_outputs=nb_filters,
                                                    kernel_size=[filter_size, filter_size],
                                                    normalizer_fn=batch_norm_fn,
@@ -81,7 +82,7 @@ def inference_vgg16(images: tf.Tensor, params: ModelParams, num_classes: int, us
                                            selected_upscale_params[i], n_layer)
                 n_layer += 1
 
-            logits = layers.conv2d(inputs=out_tensor,
+            logits = slim.conv2d(inputs=out_tensor,
                                    num_outputs=num_classes,
                                    activation_fn=None,
                                    kernel_size=[1, 1],
@@ -117,8 +118,8 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
         :return:
         """
         with tf.compat.v1.variable_scope('deconv_{}'.format(number)):
-            if previous_intermediate_layer.get_shape()[1].value and \
-                    previous_intermediate_layer.get_shape()[2].value:
+            if previous_intermediate_layer.get_shape()[1] and \
+                    previous_intermediate_layer.get_shape()[2]:
                 target_shape = previous_intermediate_layer.get_shape()[1:3]
             else:
                 target_shape = tf.shape(input=previous_intermediate_layer)[1:3]
@@ -136,7 +137,7 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
                         stride=1
                     )
             else:
-                net = layers.conv2d(
+                net = slim.conv2d(
                     inputs=net,
                     num_outputs=filter_size,
                     kernel_size=[3, 3],
@@ -153,9 +154,9 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
 
     # Upsampling
     with tf.compat.v1.variable_scope('upsampling'):
-        with arg_scope([layers.conv2d],
+        with arg_scope([slim.conv2d],
                        normalizer_fn=batch_norm_fn,
-                       weights_regularizer=layers.l2_regularizer(weight_decay)):
+                       weights_regularizer=slim.l2_regularizer(weight_decay)):
             selected_upscale_params = [l for i, l in enumerate(params.upscale_params)
                                        if params.selected_levels_upscaling[i]]
 
@@ -172,7 +173,7 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
             # Force layers to not be too big to reduce memory usage
             for i, l in enumerate(selected_intermediate_levels):
                 if l.get_shape()[-1] > params.max_depth:
-                    selected_intermediate_levels[i] = layers.conv2d(
+                    selected_intermediate_levels[i] = slim.conv2d(
                         inputs=l,
                         num_outputs=params.max_depth,
                         kernel_size=[1, 1],
@@ -190,14 +191,14 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
 
                 n_layer += 1
 
-            if images.get_shape()[1].value and images.get_shape()[2].value:
+            if images.get_shape()[1] and images.get_shape()[2]:
                 target_shape = images.get_shape()[1:3]
             else:
                 target_shape = tf.shape(input=images)[1:3]
             out_tensor = tf.compat.v1.image.resize_images(out_tensor, target_shape,
                                                 method=tf.image.ResizeMethod.BILINEAR)
 
-        logits = layers.conv2d(inputs=out_tensor,
+        logits = slim.conv2d(inputs=out_tensor,
                                num_outputs=num_classes,
                                activation_fn=None,
                                kernel_size=[1, 1],
@@ -209,7 +210,7 @@ def inference_resnet_v1_50(images, params, num_classes, use_batch_norm=False, we
 def conv_bn_layer(input_tensor, kernel_size, output_channels, stride=1, bn=False,
                   is_training=True, relu=True):
     # with tf.variable_scope(name) as scope:
-    conv_layer = layers.conv2d(inputs=input_tensor,
+    conv_layer = slim.conv2d(inputs=input_tensor,
                                num_outputs=output_channels,
                                kernel_size=kernel_size,
                                stride=stride,
@@ -222,19 +223,19 @@ def conv_bn_layer(input_tensor, kernel_size, output_channels, stride=1, bn=False
         # https://datascience.stackexchange.com/questions/22073/why-is-scale-parameter-on-batch-normalization-not-needed-on-relu/22127
 
         # Using fuse operation: https://www.tensorflow.org/performance/performance_guide#common_fused_ops
-        conv_layer = layers.batch_norm(inputs=conv_layer, center=True, scale=False, is_training=is_training, fused=True)
+        conv_layer = slim.batch_norm(inputs=conv_layer, center=True, scale=False, is_training=is_training, fused=True)
         conv_layer = tf.nn.relu(conv_layer)
 
     if bn and not relu:
-        conv_layer = layers.batch_norm(inputs=conv_layer, center=True, scale=True, is_training=is_training)
+        conv_layer = slim.batch_norm(inputs=conv_layer, center=True, scale=True, is_training=is_training)
 
     # print('Conv layer {0} -> {1}'.format(input_tensor.get_shape().as_list(),conv_layer.get_shape().as_list()))
     return conv_layer
 
 
 def _get_image_shape_tensor(tensor: tf.Tensor):
-    if tensor.get_shape()[1].value and \
-                    tensor.get_shape()[2].value:
+    if tensor.get_shape()[1] and \
+                    tensor.get_shape()[2]:
         target_shape = tensor.get_shape()[1:3]
     else:
         target_shape = tf.shape(input=tensor)[1:3]
@@ -250,14 +251,14 @@ def inference_u_net(images: tf.Tensor, params: ModelParams, num_classes: int, us
 
         with tf.compat.v1.variable_scope('Encoder'):
 
-            conv_layer = layers.conv2d(images, num_outputs=64, kernel_size=(3, 3), padding='SAME',
+            conv_layer = slim.conv2d(images, num_outputs=64, kernel_size=(3, 3), padding='SAME',
                                        activation_fn=tf.identity)
 
             enc_layers['conv_layer_enc_64'] = conv_bn_layer(conv_layer, kernel_size=(3, 3),
                                                             output_channels=64,
                                                             bn=True, is_training=is_training, relu=True)
 
-            conv_layer = layers.max_pool2d(inputs=enc_layers['conv_layer_enc_64'], kernel_size=(2, 2), stride=2)
+            conv_layer = slim.max_pool2d(inputs=enc_layers['conv_layer_enc_64'], kernel_size=(2, 2), stride=2)
 
             for n_feat in [128, 256, 512]:
                 enc_layers['conv_layer_enc_' + str(n_feat)] = conv_bn_layer(conv_layer, kernel_size=(3, 3),
@@ -270,7 +271,7 @@ def inference_u_net(images: tf.Tensor, params: ModelParams, num_classes: int, us
                     output_channels=n_feat,
                     bn=True, is_training=is_training, relu=True)
 
-                conv_layer = layers.max_pool2d(inputs=enc_layers['conv_layer_enc_' + str(n_feat)], kernel_size=(2, 2), stride=2)
+                conv_layer = slim.max_pool2d(inputs=enc_layers['conv_layer_enc_' + str(n_feat)], kernel_size=(2, 2), stride=2)
 
             conv_layer_enc_1024 = conv_bn_layer(conv_layer, kernel_size=(3, 3),
                                                 output_channels=1024,
@@ -306,5 +307,5 @@ def inference_u_net(images: tf.Tensor, params: ModelParams, num_classes: int, us
                         size=reduced_patchsize,
                         method=tf.image.ResizeMethod.BILINEAR)
 
-            return layers.conv2d(dec_layers['conv_layer_dec_64'], num_outputs=num_classes, kernel_size=(3, 3),
+            return slim.conv2d(dec_layers['conv_layer_dec_64'], num_outputs=num_classes, kernel_size=(3, 3),
                                  padding='SAME', activation_fn=tf.identity)

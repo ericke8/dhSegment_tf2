@@ -1,6 +1,7 @@
-from tensorflow.contrib import slim, layers
+from tensorflow_addons import layers
 import tensorflow as tf
-from tensorflow.contrib.slim import nets
+import tf_slim as slim
+from tf_slim import nets
 import numpy as np
 
 _VGG_MEANS = [123.68, 116.78, 103.94]
@@ -50,7 +51,7 @@ def vgg_16_fn(input_tensor: tf.Tensor, scope='vgg_16', blocks=5, weight_decay=0.
 def resnet_v1_50_fn(input_tensor: tf.Tensor, is_training=False, blocks=4, weight_decay=0.0001,
                     renorm=True, corrected_version=False) -> tf.Tensor:
     with slim.arg_scope(nets.resnet_v1.resnet_arg_scope(weight_decay=weight_decay, batch_norm_decay=0.999)), \
-         slim.arg_scope([layers.batch_norm], renorm_decay=0.95, renorm=renorm):
+         slim.arg_scope([slim.batch_norm], renorm_decay=0.95, renorm=renorm):
         input_tensor = mean_substraction(input_tensor)
         assert 0 < blocks <= 4
 

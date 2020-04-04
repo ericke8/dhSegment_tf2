@@ -88,7 +88,7 @@ def model_fn(mode, features, labels, params):
     # Loss
     # ----
     if mode in [tf.estimator.ModeKeys.TRAIN, tf.estimator.ModeKeys.EVAL]:
-        regularized_loss = tf.losses.get_regularization_loss()
+        regularized_loss = tf.compat.v1.losses.get_regularization_loss()
         if prediction_type == PredictionType.CLASSIFICATION:
             onehot_labels = tf.one_hot(indices=labels, depth=model_params.n_classes)
             with tf.name_scope("loss"):
